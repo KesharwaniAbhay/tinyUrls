@@ -1,0 +1,71 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>TinyLink — Dashboard</title>
+  <link rel="stylesheet" href="/assets/styles.css" />
+</head>
+<body>
+  <header>
+    <div><h1>TinyLink</h1></div>
+  </header>
+  <main>
+    <form id="createForm">
+      <div>
+        <label>Target URL</label><br>
+        <input id="target" placeholder="https://example.com/very/long/url" style="width:100%" />
+      </div>
+      <div>
+        <label>Custom code (optional)</label><br>
+        <input id="code" placeholder="6-8 alnum chars" />
+      </div>
+      <div id="error" style="color:red"></div>
+      <button>Create</button>
+    </form>
+
+    <h2>Links</h2>
+    <div id="linksArea">Loading…</div>
+  </main>
+
+  <script>
+    async function load() {
+      const a = document.getElementById('linksArea');
+      a.innerText = 'Loading…';
+      const r = await fetch('/api/links');
+      const data = await r.json();
+      if (!Array.isArray(data) || data.length === 0) { a.innerText = 'No links yet.'; return; }
+      const table = document.createElement('table');
+      table.style.width = '100%';
+      table.innerHTML = '<thead><tr><th>Code</th><th>Target</th><th>Clicks</th><th>Last clicked</th><th>Actions</th></tr></thead>';
+      const tbody = document.createElement('tbody');
+      data.forEach(l => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td><a href='/${l.code}'>${l.code}</a></td><td title='${l.target_url}'>${l.target_url}</td><td>${l.clicks}</td><td>${l.last_clicked || '—'}</td><td><a href='/code/${l.code}'>Stats</a> <button data-code='${l.code}'>Delete</button></td>`;
+        tbody.appendChild(tr);
+      });
+      table.appendChild(tbody);
+      a.innerHTML = '';
+      a.appendChild(table);
+      a.querySelectorAll('button[data-code]').forEach(btn => btn.addEventListener('click', async () => {
+        const c = btn.getAttribute('data-code');
+        if (!confirm('Delete ' + c + '?')) return;
+        const res = await fetch('/api/links/' + c, { method: 'DELETE' });
+        if (res.status === 204) load(); else alert('Failed');
+      }));
+    }
+
+    document.getElementById('createForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const target = document.getElementById('target').value;
+      const code = document.getElementById('code').value;
+      document.getElementById('error').innerText = '';
+      const res = await fetch('/api/links', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ target_url: target, code: code || undefined })});
+      if (res.status === 201) { document.getElementById('target').value=''; document.getElementById('code').value=''; load(); }
+      else { const j = await res.json(); document.getElementById('error').innerText = j.error || 'Error'; }
+    });
+
+    load();
+  </script>
+</body>
+</html>
